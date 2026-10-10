@@ -130,6 +130,25 @@ function drawSelection(p, o) {
   for (const x of [-w/2,w/2]) for (const y of [-h/2,h/2]) p.rect(x-4,y-4,8,8);
   p.pop();
 }
+// Opsi A: hit-test 4 handle sudut untuk uniform-scale (rumus kotak sama seperti drawSelection).
+function selectionSize(o) {
+  const pad = 8;
+  return {
+    w: Math.max(12,o.w*o.scale) + o.weight*o.scale + pad*2,
+    h: Math.max(12,o.h*o.scale) + o.weight*o.scale + pad*2
+  };
+}
+function handleHit(o, pos) {
+  const {w,h} = selectionSize(o);
+  const rad = o.rotation*Math.PI/180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const dx = pos.x-o.x, dy = pos.y-o.y;
+  const lx = dx*cos + dy*sin, ly = -dx*sin + dy*cos;
+  const grab = 12;
+  for (const hx of [-w/2,w/2]) for (const hy of [-h/2,h/2]) {
+    if (Math.abs(lx-hx) <= grab && Math.abs(ly-hy) <= grab) return true;
+  }
+  return false;
+}
 function hitAt(pos) {
   const px = hitBuffer.get(Math.floor(pos.x), Math.floor(pos.y));
   const index = (px[0] + px[1]*256 + px[2]*65536) - 1;
@@ -145,8 +164,17 @@ function pointerDown(event) {
   event.preventDefault(); flushStyle(); renderer.elt.setPointerCapture(event.pointerId);
   const start = coordinates(event);
   if (tool === 'select') {
-    const object = hitAt(start); selectedId = object?.id ?? null;
-    gesture = object ? { mode:'move', pointer:event.pointerId, start, before:cloneScene(objects), x:object.x, y:object.y } : null;
+    const cur = selected();
+    if (cur && handleHit(cur, start)) {
+      gesture = { mode:'corner-scale', pointer:event.pointerId, start, before:cloneScene(objects), startDist: Math.max(5, Math.hypot(start.x-cur.x, start.y-cur.y)), startScale: cur.scale };
+    } else {
+      const object = hitAt(start); selectedId = object?.id ?? null;
+      if (object && handleHit(object, start)) {
+        gesture = { mode:'corner-scale', pointer:event.pointerId, start, before:cloneScene(objects), startDist: Math.max(5, Math.hypot(start.x-object.x, start.y-object.y)), startScale: object.scale };
+      } else {
+        gesture = object ? { mode:'move', pointer:event.pointerId, start, before:cloneScene(objects), x:object.x, y:object.y } : null;
+      }
+    }
   } else {
     gesture = {mode:'draw', pointer:event.pointerId, start, before:cloneScene(objects), style:style()};
     preview = makeShape(tool,start,start,gesture.style,nextId++);
@@ -159,7 +187,11 @@ function pointerDown(event) {
 function pointerMove(event) {
   if (!gesture || gesture.pointer !== event.pointerId) return;
   const pos = coordinates(event);
-  if (gesture.mode === 'move') {
+  if (gesture.mode === 'corner-scale') {
+    const o = selected(); if (!o) return;
+    const d = Math.hypot(pos.x-o.x, pos.y-o.y);
+    o.scale = Math.max(0.1, Math.min(4, gesture.startScale * d / gesture.startDist));
+  } else if (gesture.mode === 'move') {
     const o = selected(); if (!o) return;
     o.x = gesture.x + pos.x-gesture.start.x; o.y = gesture.y + pos.y-gesture.start.y;
   } else if (tool === 'brush') {
@@ -182,6 +214,9 @@ function pointerUp(event, canceled = false) {
   } else if (gesture.mode === 'move') {
     const o = selected();
     if (o && (o.x !== gesture.x || o.y !== gesture.y)) checkpoint(before);
+  } else if (gesture.mode === 'corner-scale') {
+    const o = selected();
+    if (o && o.scale !== gesture.startScale) checkpoint(before);
   }
   preview = null; gesture = null; document.body.classList.remove('drawing');
   if (renderer.elt.hasPointerCapture(event.pointerId)) renderer.elt.releasePointerCapture(event.pointerId);
