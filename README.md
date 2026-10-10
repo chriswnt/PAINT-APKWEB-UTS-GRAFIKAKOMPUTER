@@ -14,6 +14,9 @@ diperbesar, diubah warnanya, di-undo, dan diunduh sebagai PNG.
 3. Klik dua kali **index.html**. Buka menggunakan Chrome atau Edge.
 4. Pilih alat di sisi kiri, lalu klik dan tarik di kanvas. Untuk Titik, cukup klik.
 5. Gunakan **Pilih**, kemudian klik objek untuk memindahkan atau mengubahnya.
+HASIL :
+![Uploading image.png…]()
+
 
 Library p5.js sudah disertakan di folder `vendor`, sehingga menggambar dan impor file lokal tidak memerlukan internet. Impor dari URL memerlukan internet dan izin CORS dari sumber gambar.
 
